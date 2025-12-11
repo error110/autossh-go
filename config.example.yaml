@@ -1,0 +1,48 @@
+# AutoSSH 配置文件示例
+# 复制此文件为 config.yaml 并根据需要修改
+
+# SSH 服务器配置
+server:
+  host: example.com       # SSH 服务器地址
+  port: 22                # SSH 端口
+  user: admin             # SSH 用户名
+
+# 认证配置
+auth:
+  type: key               # 认证类型: password 或 key
+  password: ""            # 密码 (type=password 时使用)
+  key_file: ~/.ssh/id_rsa # 私钥文件路径 (type=key 时使用)
+  passphrase: ""          # 私钥密码短语 (可选)
+
+# 隧道配置
+tunnels:
+  # 本地端口转发 (-L)
+  # 在本地监听端口，将流量通过 SSH 隧道转发到远程目标
+  local:
+    - bind: "127.0.0.1:8080"    # 本地监听地址
+      target: "localhost:80"     # 远程目标地址
+    # - bind: "0.0.0.0:3306"
+    #   target: "mysql.internal:3306"
+
+  # 远程端口转发 (-R)
+  # 在远程服务器上监听端口，将流量转发回本地
+  remote:
+    - bind: "0.0.0.0:9090"      # 远程监听地址
+      target: "localhost:22"     # 本地目标地址
+    # - bind: "0.0.0.0:8888"
+    #   target: "localhost:3000"
+
+  # 动态端口转发 (-D) / SOCKS5 代理
+  dynamic:
+    - bind: "127.0.0.1:1080"    # SOCKS5 代理监听地址
+    # - bind: "0.0.0.0:1081"    # 多个代理
+
+# 自动重连配置
+reconnect:
+  enabled: true           # 是否启用自动重连
+  interval: 5s            # 重连间隔 (支持 s, m, h)
+  max_retries: 0          # 最大重试次数 (0 = 无限重试)
+
+# 日志级别: debug, info, warn, error
+log_level: info
+
