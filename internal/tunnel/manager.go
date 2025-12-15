@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"sync"
+	"time"
 
 	"autossh/internal/config"
 	"autossh/internal/ssh"
@@ -61,17 +62,49 @@ func (m *Manager) Start() error {
 		m.tunnels = append(m.tunnels, tunnel)
 	}
 
-	// 启动所有隧道
+	if len(m.tunnels) == 0 {
+		return nil
+	}
+
+	// 启动所有隧道，收集初始化错误
+	errChan := make(chan error, len(m.tunnels))
+
 	for _, t := range m.tunnels {
 		slog.Info("启动隧道", "type", t.Type(), "spec", t.String())
 		go func(tunnel Tunnel) {
 			if err := tunnel.Start(m.ctx); err != nil {
-				slog.Error("隧道启动失败", "type", tunnel.Type(), "spec", tunnel.String(), "error", err)
+				// 只有在 context 未取消时才记录错误
+				select {
+				case <-m.ctx.Done():
+					// context 已取消，这是正常停止
+				default:
+					slog.Error("隧道启动失败", "type", tunnel.Type(), "spec", tunnel.String(), "error", err)
+					select {
+					case errChan <- err:
+					default:
+						// channel 已满，忽略
+					}
+				}
 			}
 		}(t)
 	}
 
-	return nil
+	// 等待一小段时间以捕获初始化错误（如监听失败）
+	// 如果隧道成功启动，Start() 会阻塞在 Accept() 循环中
+	timeoutCtx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	select {
+	case err := <-errChan:
+		// 有隧道启动失败
+		if m.cancel != nil {
+			m.cancel()
+		}
+		return err
+	case <-timeoutCtx.Done():
+		// 100ms 内没有错误，认为启动成功
+		return nil
+	}
 }
 
 // Stop 停止所有隧道
@@ -105,4 +138,3 @@ func (m *Manager) TunnelCount() int {
 	defer m.mu.RUnlock()
 	return len(m.tunnels)
 }
-
